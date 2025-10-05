@@ -3,7 +3,7 @@ import { createAgent, gemini } from "@inngest/agent-kit";
 const analyzeTicket = async (ticket) => {
   const supportAgent = createAgent({
     model: gemini({
-      model: "gemini-1.5-flash-8b",
+      model: process.env.GEMINI_MODEL || "gemini-1.5-flash-8b",
       apiKey: process.env.GEMINI_API_KEY,
     }),
     name: "AI Ticket Triage Assistant",
@@ -23,8 +23,9 @@ IMPORTANT:
 Repeat: Do not wrap your output in markdown or code fences.`,
   });
 
-  const response =
-    await supportAgent.run(`You are a ticket triage agent. Only return a strict JSON object with no extra text, headers, or markdown.
+  let response;
+  try {
+    response = await supportAgent.run(`You are a ticket triage agent. Only return a strict JSON object with no extra text, headers, or markdown.
         
 Analyze the following support ticket and provide a JSON object with:
 
@@ -49,14 +50,61 @@ Ticket information:
 - Title: ${ticket.title}
 - Description: ${ticket.description}`);
 
-  const raw = response.output[0].context;
+  } catch (err) {
+    // Log full error details to help diagnose 404/HTTP errors from the AI provider
+    try {
+      console.error("Error making AI request:", err && err.message ? err.message : err);
+      if (err.stack) console.error(err.stack);
+      // Some HTTP clients attach response details
+      if (err.response) {
+        try {
+          console.error("AI error response status:", err.response.status);
+          console.error("AI error response body:", JSON.stringify(err.response.data || err.response.body || err.response, null, 2));
+        } catch (inner) {
+          console.error("Error printing err.response", inner);
+        }
+      }
+    } catch (logErr) {
+      console.error("Failed to log AI error fully:", logErr);
+    }
+    return null;
+  }
+
+  if (!response) {
+    console.error("AI agent returned no response");
+    // Provide a safe local fallback so ticket processing can continue even when
+    // the remote AI model is unavailable or returns 404. This produces a
+    // deterministic object based on the ticket content.
+    const fallback = (() => {
+      const text = `${ticket.title}. ${ticket.description || ""}`.trim();
+      const firstSentence = text.split(/[\.!?]\s/)[0] || text;
+      const relatedSkills = [];
+      const desc = (ticket.title + ' ' + (ticket.description || '')).toLowerCase();
+      if (/react|frontend|reactjs/.test(desc)) relatedSkills.push('React');
+      if (/node|express|backend/.test(desc)) relatedSkills.push('Node.js');
+      if (/mongo|mongodb|mongoose/.test(desc)) relatedSkills.push('MongoDB');
+      if (/sql|postgres|mysql/.test(desc)) relatedSkills.push('SQL');
+      if (/docker|k8s|kubernetes/.test(desc)) relatedSkills.push('Docker');
+      return {
+        summary: firstSentence,
+        priority: 'medium',
+        helpfulNotes: 'Fallback analysis: ' + (ticket.description || ticket.title),
+        relatedSkills,
+      };
+    })();
+
+    console.warn('Using local AI fallback for ticket analysis');
+    return fallback;
+  }
+
+  const raw = response.output?.[0]?.context || "";
 
   try {
     const match = raw.match(/```json\s*([\s\S]*?)\s*```/i);
     const jsonString = match ? match[1] : raw.trim();
     return JSON.parse(jsonString);
   } catch (e) {
-    console.log("Failed to parse JSON from AI response" + e.message);
+    console.log("Failed to parse JSON from AI response: " + e.message);
     return null; // watch out for this
   }
 };

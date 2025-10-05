@@ -20,7 +20,8 @@ export default function TicketDetailsPage() {
             },
           }
         );
-        const data = await res.json();
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : {};
         if (res.ok) {
           setTicket(data.ticket);
         } else {

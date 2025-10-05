@@ -14,8 +14,9 @@ export default function Tickets() {
         headers: { Authorization: `Bearer ${token}` },
         method: "GET",
       });
-      const data = await res.json();
-      setTickets(data.tickets || []);
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  setTickets(data.tickets || []);
     } catch (err) {
       console.error("Failed to fetch tickets:", err);
     }
@@ -42,7 +43,8 @@ export default function Tickets() {
         body: JSON.stringify(form),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
 
       if (res.ok) {
         setForm({ title: "", description: "" });

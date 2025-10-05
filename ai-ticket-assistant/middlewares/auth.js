@@ -1,7 +1,9 @@
 import jwt from "jsonwebtoken";
 
 export const authenticate = (req, res, next) => {
-  const token = req.headers.authorization?.spilt(" ")[1];
+  // Some clients (PowerShell Invoke-RestMethod) may supply headers in different shapes.
+  const authHeader = req.headers.authorization;
+  const token = typeof authHeader === "string" ? authHeader.split(" ")[1] : undefined;
 
   if (!token) {
     return res.status(401).json({ error: "Access Denied. No token found." });

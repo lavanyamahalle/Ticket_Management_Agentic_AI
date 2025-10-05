@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-function CheckAuth({ children, protectedRoute }) {
+function CheckAuth(props) {
+  // routes pass a prop named `protected` (e.g. <CheckAuth protected={true} />)
+  // but the original component expected `protectedRoute`. Support both.
+  const { children } = props;
+  const protectedRoute = props.protectedRoute ?? props.protected ?? false;
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
