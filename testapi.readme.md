@@ -1,3 +1,5 @@
+ npm run inngest-dev - new terminal back
+ npm run dev-back and front
  # 📝 API Endpoints
 
 ### Authentication
